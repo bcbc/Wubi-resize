@@ -54,7 +54,6 @@ target=/tmp/wubi-resize # mountpoint to be used for new virtual disk
 size_entered=false  #did the user enter the new size?
 
 # work variables
-ddcount=0
 host_mountpoint= 
 GRUB_DEVICE_BOOT=
 loop_file=
@@ -295,14 +294,11 @@ resize ()
 #  echo "$0: `date`"
   echo "$0: Creating new virtual disk (new.disk)..."
 
-  # The dd command uses a block size of 1MB (1024KB)
-  # Multiply new size by 1000 for the count= parameter
-  ddcount=`expr "$size" "*" 1000`  
   if [ "$verbose" != "true" ]; then
     exec 3>&1 #save stdout to file descriptor 3
     exec > /dev/null 2>&1
   fi
-  dd if=/dev/zero of="$newdisk" bs=1MB count="$ddcount"
+  dd if=/dev/zero of="$newdisk" bs=1GB count="$size"
   retcode="$?"
   if [ "$verbose" != "true" ]; then
     exec 1>&3 3>&- # restore stdout and remove fd3
