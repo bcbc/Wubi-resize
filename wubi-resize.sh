@@ -47,7 +47,7 @@ debug=false      # internal use only
 size=            # size of new virtual disk 
 
 # literals
-version=1.3beta 
+version=1.5
 maxsize=32 # max size of new virtual disk unless --max-override supplied
 target=/tmp/wubi-resize # mountpoint to be used for new virtual disk
 # flags
@@ -216,7 +216,8 @@ sanity_checks ()
     fi
     if [ "$ignore_max" = "false" ]; then
       if [ $size -gt $maxsize ]; then
-          echo "$0: The new disk cannot exceed $maxsize GB."
+          echo "$0: The new disk cannot exceed $maxsize GB unless the"
+          echo "$0: --max-override option is used (not recommended)."
           exit 1
       fi
     fi
