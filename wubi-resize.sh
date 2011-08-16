@@ -273,6 +273,40 @@ sanity_checks ()
         echo "$0: $size GB plus a remaining buffer of $buffer GB (5%) is required."
         exit 1
     fi
+
+    # check for partitions mounted on 'unexpected' mountpoints. These aren't
+    # included in the space check and can cause the resize to run out of space
+    # during the rsync copy. Mountpoints under /mnt or /media and of course
+    # /boot, /usr, /home, /tmp, /root and /host are not a problem.
+    mtpt=
+    while read DEV MTPT FSTYPE OPTS REST; do
+        case "$DEV" in
+          /dev/sd[a-z][0-9])
+            mtpt=$MTPT
+            work=$MTPT
+            while true; do
+                work=${mtpt%/*}
+                if [ "$work" == "" ]; then
+                    break
+                fi
+                mtpt=$work
+            done
+            case $mtpt in
+            /mnt|/media|/host|/home|/usr|/boot|/tmp|/root)
+                true #ok
+                ;;
+            *)
+                echo "$0: "$DEV" is mounted on "$MTPT""
+                echo "$0: The resize script does not automatically"
+                echo "$0: exclude this mountpoint."
+                echo "$0: Please unmount "$MTPT" and try again."
+                exit_script 1
+                ;;
+            esac
+          ;;
+        esac
+    done < /proc/mounts
+
 }
 
 #resize
