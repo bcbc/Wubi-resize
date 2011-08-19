@@ -47,7 +47,7 @@ debug=false      # internal use only
 size=            # size of new virtual disk 
 
 # literals
-version=1.5
+version=1.4b
 maxsize=32 # max size of new virtual disk unless --max-override supplied
 target=/tmp/wubi-resize # mountpoint to be used for new virtual disk
 # flags
@@ -317,7 +317,7 @@ sanity_checks ()
 # 4. copy everything from current disk to new disk
 resize ()
 {
-    echo "$0: A new virtual disk of $size GB will be created. Continue?"
+    echo "$0: A new virtual disk of $size GB will be created. Continue? (Y/N)"
     read input
     # since we're asking for permission, make sure user responds affirmatively
     # If not y or Y then abort. If not n or N then issue additional invalid response msg
@@ -341,6 +341,10 @@ resize ()
   retcode="$?"
   if [ "$verbose" != "true" ]; then
     exec 1>&3 3>&- # restore stdout and remove fd3
+  else
+    echo ""
+    echo  "$0: Verbose mode: press Enter to continue"
+    read input
   fi
   if [ "$retcode" != 0 ]; then
      echo "$0: Creating the new.disk failed or was canceled"
@@ -359,6 +363,10 @@ resize ()
   retcode="$?"
   if [ "$verbose" != "true" ]; then
     exec 1>&3 3>&- # restore stdout and remove fd3
+  else
+    echo ""
+    echo  "$0: Verbose mode: press Enter to continue"
+    read input
   fi
   if [ "$retcode" != 0 ]; then
      echo "$0: Formatting the new.disk failed or was canceled"
@@ -381,7 +389,7 @@ resize ()
   else
      rsync_opts="-a"
   fi
-  rsync "$rsync_opts" --exclude '/sys/*' --exclude '/proc/*' --exclude '/host/*' --exclude '/mnt/*' --exclude '/media/*/*' --exclude '/tmp/*' --exclude '/home/*/.gvfs' --exclude '/root/.gvfs' / $target
+  rsync "$rsync_opts" --exclude '/sys/*' --exclude '/proc/*' --exclude '/host/*' --exclude '/mnt/*' --exclude '/media/*/*' --exclude '/tmp/*' --exclude '/home/*/.gvfs' --exclude '/root/.gvfs' --exclude '/var/lib/lightdm/.gvfs' / $target
   if [ "$?" != 0 ]; then
      echo "$0: Copying files failed or was canceled" 
      echo "$0: Please wait - cleaning up..."
