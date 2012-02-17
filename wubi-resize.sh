@@ -371,7 +371,7 @@ resize ()
     ddcount=`expr "$size" "*" 1000`
     if [ "$verbose" != "true" ]; then
       exec 3>&1 #save stdout to file descriptor 3
-      exec > /dev/null 2>&1
+      exec > /dev/null
     fi
     dd if=/dev/zero of="$newdisk" bs=1MB count="$ddcount"
     retcode="$?"
@@ -395,7 +395,7 @@ resize ()
     echo "$0: Formatting new virtual disk as ext4."
     if [ "$verbose" != "true" ]; then
       exec 3>&1 #save stdout to file descriptor 3
-      exec > /dev/null 2>&1
+      exec > /dev/null
     fi
     mkfs.ext4 -F "$newdisk"
     retcode="$?"
