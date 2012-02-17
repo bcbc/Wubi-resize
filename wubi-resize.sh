@@ -45,6 +45,7 @@ verbose=false    # don't provide output of dd, mkfs or rsync commands
 ignore_max=false # limit max size of virtual disk by default
 debug=false      # internal use only
 size=            # size of new virtual disk 
+resume=false     # resume failed copy or synch backup
 
 # literals
 version=1.4b
@@ -84,6 +85,7 @@ Increase the wubi virtual disk size
   --version               print the version information and exit
   -v, --verbose           print verbose output
   --max-override          ignore maximum size constraint of 32GB
+  --resume                resume previous failure due to copy errors
 
 Note: you have to complete the resize by booting into windows and
 renaming the root.disk to OLDroot.disk and new.disk to root.disk
@@ -112,6 +114,9 @@ for option in "$@"; do
     --max-override)
     ignore_max=true
 	;;
+    --resume)
+    resume=true
+	;;
 #undocumented debug option
     -d | --debug)
 	set -x
@@ -138,6 +143,26 @@ for option in "$@"; do
 	;;
     esac
 done
+
+### Present Y/N questions and check response 
+### (a valid response is required)
+### Parameter: the question requiring an answer
+### Returns: 0 = Yes, 1 = No
+test_YN ()
+{
+    while true; do
+      info "$@"
+      read input
+      case "$input" in
+        "y" | "Y" )
+          return 0 ;;
+        "n" | "N" )
+          return 1 ;;
+        * )
+          warn "Invalid response ('$input')"
+      esac
+    done
+}
 
 sanity_checks ()
 {
@@ -193,10 +218,17 @@ sanity_checks ()
 
     newdisk=/host/ubuntu/disks/new.disk
     if [ -f "$newdisk" ]; then
-        echo "$0: $newdisk already exists"
+      if [ "$resume" == "true" ]; then
+        echo "$0: resuming previous attempt"
+      else
+        echo "$0: $newdisk already exists. Either remove"
+        echo "$0: manually or rerun with --resume option"
         exit 1
+      fi
+    elif [ "$resume" == "true" ]; then
+        echo "$0: --resume option invalid and will be ignored"
+        resume=false
     fi
-
     # check host partition is not FAT32 - this is limited to 4GB file sizes
     hostdev=$(mount | grep /host | tail -n 1 | awk '{print $1}')
     hosttype=`blkid -o value -s TYPE "$hostdev"`
@@ -269,7 +301,7 @@ sanity_checks ()
     # calculate 5% buffer
     buffer=`echo "$total_size * 5 / 100" | bc`
     requiredspace=`echo "$buffer + $size" | bc`
-    if [ "$free_space" -lt "$requiredspace" ]; then
+    if [ "$free_space" -lt "$requiredspace" ] && [ "$resume" == "false" ]; then
         echo "$0: Insufficient space - only $free_space GB available"
         echo "$0: $size GB plus a remaining buffer of $buffer GB (5%) is required."
         exit 1
@@ -317,63 +349,68 @@ sanity_checks ()
 # 4. copy everything from current disk to new disk
 resize ()
 {
-    echo "$0: A new virtual disk of $size GB will be created. Continue? (Y/N)"
-    read input
-    # since we're asking for permission, make sure user responds affirmatively
-    # If not y or Y then abort. If not n or N then issue additional invalid response msg
-        if [ "$input" != "y" ] && [ "$input" != "Y" ]; then
-            [ "$input" != "n" ] && [ "$input" != "N" ] && echo "$0: Invalid response ($input)"
-            echo "$0: Request aborted"
-            exit 0
-        fi
+  if [ "$resume" == "true" ]; then
+      test_YN "Resume previous resize attempt? (Y/N)"
+  else
+      test_YN "A new virtual disk of $size GB will be created. Continue? (Y/N)"
+  fi
+  # User pressed N
+  if [ "$?" -eq "1" ]; then
+      echo "$0: Request aborted"
+      exit 0
+  fi
 
 #  echo "$0: `date`"
-  echo "$0: Creating new virtual disk (new.disk)..."
+  if [ "$resume" == "false" ]; then
+    echo "$0: Creating new virtual disk (new.disk)..."
 
   # The dd command uses a block size of 1MB (1024KB)
   # Multiply new size by 1000 for the count= parameter
-  ddcount=`expr "$size" "*" 1000`  
-  if [ "$verbose" != "true" ]; then
-    exec 3>&1 #save stdout to file descriptor 3
-    exec > /dev/null 2>&1
+    ddcount=`expr "$size" "*" 1000`
+    if [ "$verbose" != "true" ]; then
+      exec 3>&1 #save stdout to file descriptor 3
+      exec > /dev/null 2>&1
+    fi
+    dd if=/dev/zero of="$newdisk" bs=1MB count="$ddcount"
+    retcode="$?"
+    if [ "$verbose" != "true" ]; then
+      exec 1>&3 3>&- # restore stdout and remove fd3
+    else
+      echo ""
+      echo  "$0: Verbose mode: press Enter to continue"
+      read input
+    fi
+    if [ "$retcode" != 0 ]; then
+       echo "$0: Creating the new.disk failed or was canceled"
+       echo "$0: Operation aborted"
+       rm "$newdisk" 
+       exit 1
+    fi
   fi
-  dd if=/dev/zero of="$newdisk" bs=1MB count="$ddcount"
-  retcode="$?"
-  if [ "$verbose" != "true" ]; then
-    exec 1>&3 3>&- # restore stdout and remove fd3
-  else
-    echo ""
-    echo  "$0: Verbose mode: press Enter to continue"
-    read input
-  fi
-  if [ "$retcode" != 0 ]; then
-     echo "$0: Creating the new.disk failed or was canceled"
-     echo "$0: Operation aborted"
-     rm "$newdisk" 
-     exit 1
-  fi 
    
  # echo "$0: `date`"
-  echo "$0: Formatting new virtual disk as ext4."
-  if [ "$verbose" != "true" ]; then
-    exec 3>&1 #save stdout to file descriptor 3
-    exec > /dev/null 2>&1
+  if [ "$resume" == "false" ]; then
+    echo "$0: Formatting new virtual disk as ext4."
+    if [ "$verbose" != "true" ]; then
+      exec 3>&1 #save stdout to file descriptor 3
+      exec > /dev/null 2>&1
+    fi
+    mkfs.ext4 -F "$newdisk"
+    retcode="$?"
+    if [ "$verbose" != "true" ]; then
+      exec 1>&3 3>&- # restore stdout and remove fd3
+    else
+      echo ""
+      echo  "$0: Verbose mode: press Enter to continue"
+      read input
+    fi
+    if [ "$retcode" != 0 ]; then
+       echo "$0: Formatting the new.disk failed or was canceled"
+       echo "$0: Operation aborted"
+       rm "$newdisk" > /dev/null 2>&1
+       exit 1
+    fi
   fi
-  mkfs.ext4 -F "$newdisk"  
-  retcode="$?"
-  if [ "$verbose" != "true" ]; then
-    exec 1>&3 3>&- # restore stdout and remove fd3
-  else
-    echo ""
-    echo  "$0: Verbose mode: press Enter to continue"
-    read input
-  fi
-  if [ "$retcode" != 0 ]; then
-     echo "$0: Formatting the new.disk failed or was canceled"
-     echo "$0: Operation aborted"
-     rm "$newdisk" > /dev/null 2>&1
-     exit 1
-  fi 
 
 # copy files
   mkdir -p $target
@@ -389,14 +426,17 @@ resize ()
   else
      rsync_opts="-a"
   fi
-  rsync "$rsync_opts" --exclude '/sys/*' --exclude '/proc/*' --exclude '/host/*' --exclude '/mnt/*' --exclude '/media/*/*' --exclude '/tmp/*' --exclude '/home/*/.gvfs' --exclude '/root/.gvfs' --exclude '/var/lib/lightdm/.gvfs' / $target
-  if [ "$?" != 0 ]; then
-     echo "$0: Copying files failed or was canceled" 
+  rsync "$rsync_opts" --delete --exclude '/sys/*' --exclude '/proc/*' --exclude '/host/*' --exclude '/mnt/*' --exclude '/media/*/*' --exclude '/tmp/*' --exclude '/home/*/.gvfs' --exclude '/root/.gvfs' --exclude '/var/lib/lightdm/.gvfs' / $target
+
+  rc="$?"
+  if [ "$rc" != 0 ]; then
+     echo "$0: Copying files failed or was canceled. Return code: "$rc""
+     echo "$0: Correct errors and rerun with --resume option"
      echo "$0: Please wait - cleaning up..."
      umount $target > /dev/null 2>&1 
      sleep 3
      rmdir $target
-     rm "$newdisk" > /dev/null 2>&1
+     #rm "$newdisk" > /dev/null 2>&1  don't delete anymore
      echo "$0: Operation aborted"
      exit 1
   fi 
