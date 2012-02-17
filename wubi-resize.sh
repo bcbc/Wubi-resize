@@ -151,7 +151,7 @@ done
 test_YN ()
 {
     while true; do
-      info "$@"
+      echo "$0: " "$@"
       read input
       case "$input" in
         "y" | "Y" )
@@ -159,7 +159,7 @@ test_YN ()
         "n" | "N" )
           return 1 ;;
         * )
-          warn "Invalid response ('$input')"
+          echo "$0: Invalid response ('$input')"
       esac
     done
 }
@@ -219,7 +219,9 @@ sanity_checks ()
     newdisk=/host/ubuntu/disks/new.disk
     if [ -f "$newdisk" ]; then
       if [ "$resume" == "true" ]; then
-        echo "$0: resuming previous attempt"
+        new_size=$(du -b /host/ubuntu/disks/new.disk 2> /dev/null | cut -f 1)
+        new_size=`echo "$new_size / 1000000000" | bc`
+        echo "$0: resuming previous attempt - size is "$new_size" GB"
       else
         echo "$0: $newdisk already exists. Either remove"
         echo "$0: manually or rerun with --resume option"
@@ -426,7 +428,7 @@ resize ()
   else
      rsync_opts="-a"
   fi
-  rsync "$rsync_opts" --delete --exclude '/sys/*' --exclude '/proc/*' --exclude '/host/*' --exclude '/mnt/*' --exclude '/media/*/*' --exclude '/tmp/*' --exclude '/home/*/.gvfs' --exclude '/root/.gvfs' --exclude '/var/lib/lightdm/.gvfs' / $target
+  rsync "$rsync_opts" --delete --exclude '/sys/*' --exclude '/proc/*' --exclude '/host/*' --exclude '/mnt/*' --exclude '/media/*/*' --exclude '/tmp/*' --exclude '/home/*/.gvfs' --exclude '/home/*/.cache/gvfs' --exclude '/var/lib/lightdm/.gvfs' / $target
 
   rc="$?"
   if [ "$rc" != 0 ]; then
