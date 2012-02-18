@@ -102,30 +102,30 @@ EOF
 for option in "$@"; do
     case "$option" in
     -h | --help)
-	usage
-	exit 0 ;;
+    usage
+    exit 0 ;;
     --version)
-	echo "$0: Version $version"
-	exit 0 ;;
+    echo "$0: Version $version"
+    exit 0 ;;
     -v | --verbose)
     echo "$0: Verbose option selected"
     verbose=true
     ;;
     --max-override)
     ignore_max=true
-	;;
+    ;;
     --resume)
     resume=true
-	;;
+    ;;
 #undocumented debug option
     -d | --debug)
-	set -x
-	debug=true
-	;;
+    set -x
+    debug=true
+    ;;
     -*)
-	echo "$0: Unrecognized option '$option'. (--help for usage instructions)"
-	exit 1
-	;;
+    echo "$0: Unrecognized option '$option'. (--help for usage instructions)"
+    exit 1
+    ;;
 # Get the new size in GB
 # Any additional parameters are errors
     *[^0-9]*)
@@ -133,14 +133,14 @@ for option in "$@"; do
         exit 1
         ;;
     *)
-	if test "x$size" != x; then
+    if test "x$size" != x; then
           echo "$0: Too many parameters"
           exit 1
-	else
-	  size="${option}"
+    else
+          size="${option}"
           size_entered=true
-        fi
-	;;
+    fi
+    ;;
     esac
 done
 
@@ -222,6 +222,7 @@ sanity_checks ()
         new_size=$(du -b /host/ubuntu/disks/new.disk 2> /dev/null | cut -f 1)
         new_size=`echo "$new_size / 1000000000" | bc`
         echo "$0: resuming previous attempt - size is "$new_size" GB"
+        size=$new_size # edit size check with actual size, not inputted size
       else
         echo "$0: $newdisk already exists. Either remove"
         echo "$0: manually or rerun with --resume option"
@@ -239,20 +240,22 @@ sanity_checks ()
         exit 1
     fi
 
-    if [ "$size_entered" != "true" ]; then
-        echo "$0: Please enter the size of the new root.disk."
-        echo "$0: Use \"--help\" for usage instructions"
-        exit 1
-    fi
-    if [ $size -lt 5 ]; then
-        echo "$0: The new disk must be at least 5GB."
-        exit 1
-    fi
-    if [ "$ignore_max" = "false" ]; then
-      if [ $size -gt $maxsize ]; then
-          echo "$0: The new disk cannot exceed $maxsize GB unless the"
-          echo "$0: --max-override option is used (not recommended)."
+    if [ "$resume" == "false" ]; then
+      if [ "$size_entered" != "true" ]; then
+          echo "$0: Please enter the size of the new root.disk."
+          echo "$0: Use \"--help\" for usage instructions"
           exit 1
+      fi
+      if [ $size -lt 5 ]; then
+          echo "$0: The new disk must be at least 5GB."
+          exit 1
+      fi
+      if [ "$ignore_max" = "false" ]; then
+        if [ $size -gt $maxsize ]; then
+            echo "$0: The new disk cannot exceed $maxsize GB unless the"
+            echo "$0: --max-override option is used (not recommended)."
+            exit 1
+        fi
       fi
     fi
 
@@ -277,38 +280,43 @@ sanity_checks ()
 
     if [ "$installsize" -gt "$size" ]; then
         echo "$0: The existing install ($installsize GB) is larger than"
-        echo "$0: the requested new disk size: $size GB."
+        if [ "$resume" == "true" ]; then
+          echo "$0: the existing new disk size: $size GB."
+        else
+          echo "$0: the requested new disk size: $size GB."
+        fi
         exit 1
     fi
     
    # Determine free space on /host, also the size of /host partition
    # There must be enough space to create the new virtual disk as 
    # well as leave sufficient buffer (set at 5% of total disk size).
-    free_space=$(df /host|tail -n 1|awk '{print $4}')
-    if [ $? != 0 ]; then
-        echo "$0: unexpected failure calculating available size"
-        exit 1
-    fi
-    # convert to GB (round down)
-    free_space=`echo "$free_space / 1024000" | bc`
+    if [ "$resume" == "false" ]; then
+      free_space=$(df /host|tail -n 1|awk '{print $4}')
+      if [ $? != 0 ]; then
+          echo "$0: unexpected failure calculating available size"
+          exit 1
+      fi
+      # convert to GB (round down)
+      free_space=`echo "$free_space / 1024000" | bc`
 
-    # total size of partition
-    total_size=$(df /host|tail -n 1|awk '{print $2}')
-    if [ $? != 0 ]; then
-        echo "$0: unexpected failure calculating available size"
-        exit 1
+      # total size of partition
+      total_size=$(df /host|tail -n 1|awk '{print $2}')
+      if [ $? != 0 ]; then
+          echo "$0: unexpected failure calculating available size"
+          exit 1
+      fi
+      # convert to GB
+      total_size=`echo "$total_size / 1024000" | bc`
+      # calculate 5% buffer
+      buffer=`echo "$total_size * 5 / 100" | bc`
+      requiredspace=`echo "$buffer + $size" | bc`
+      if [ "$free_space" -lt "$requiredspace" ] && [ "$resume" == "false" ]; then
+          echo "$0: Insufficient space - only $free_space GB available"
+          echo "$0: $size GB plus a remaining buffer of $buffer GB (5%) is required."
+          exit 1
+      fi
     fi
-    # convert to GB
-    total_size=`echo "$total_size / 1024000" | bc`
-    # calculate 5% buffer
-    buffer=`echo "$total_size * 5 / 100" | bc`
-    requiredspace=`echo "$buffer + $size" | bc`
-    if [ "$free_space" -lt "$requiredspace" ] && [ "$resume" == "false" ]; then
-        echo "$0: Insufficient space - only $free_space GB available"
-        echo "$0: $size GB plus a remaining buffer of $buffer GB (5%) is required."
-        exit 1
-    fi
-
     # check for partitions mounted on 'unexpected' mountpoints. These aren't
     # included in the space check and can cause the resize to run out of space
     # during the rsync copy. Mountpoints under /mnt or /media and of course
