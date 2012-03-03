@@ -48,7 +48,7 @@ size=            # size of new virtual disk
 resume=false     # resume failed copy or synch backup
 
 # literals
-version=1.4b
+version=1.5b
 maxsize=32 # max size of new virtual disk unless --max-override supplied
 target=/tmp/wubi-resize # mountpoint to be used for new virtual disk
 # flags
@@ -220,7 +220,7 @@ sanity_checks ()
     if [ -f "$newdisk" ]; then
       if [ "$resume" == "true" ]; then
         new_size=$(du -b /host/ubuntu/disks/new.disk 2> /dev/null | cut -f 1)
-        new_size=`echo "$new_size / 1000000000" | bc`
+        new_size=`echo "$new_size / 1000000000" | bc`  #assumes made by this program, otherwise will underreport
         echo "$0: resuming previous attempt - size is "$new_size" GB"
         size=$new_size # edit size check with actual size, not inputted size
       else
@@ -259,7 +259,7 @@ sanity_checks ()
       fi
     fi
 
-   # Make sure the new size is bigger than the existing install size
+    # Make sure the new size is bigger than the existing install size
     installsize=0
     installsize=$(df | awk '$6=="/" || $6=="/home" || $6=="/usr" {sum += $3} END {print sum}')
     if [ $? != 0 ]; then
@@ -272,20 +272,42 @@ sanity_checks ()
         exit 1
     fi
     # convert to GB - round up
-    work1=`echo "$installsize / 1024000" | bc`
+    # Add a 500MB buffer - probably because of the filesystem reserved space
+    # it won't boot properly if it's borderline
+    work1=`echo "( $installsize + 512000) / 1024000" | bc`
     work2=`echo "$work1 * 1024000" | bc`
     if [ "$installsize" -gt "$work2" ]; then
         installsize=`echo "$work1 + 1" | bc`
+    else
+        installsize=$work1
     fi
-
-    if [ "$installsize" -gt "$size" ]; then
-        echo "$0: The existing install ($installsize GB) is larger than"
+    if [ "$installsize" -ge "$size" ]; then
+        echo "$0: The new size ("$size" GB) isn't sufficient to hold your"
+        echo "$0: existing install ("$installsize" GB) plus a freespace buffer"
         if [ "$resume" == "true" ]; then
-          echo "$0: the existing new disk size: $size GB."
+          size=`echo "$installsize + 1" | bc`
+          test_YN "Resize existing new disk size to: $size GB?"
+          if [ "$?" -eq 1 ]; then # user pressed N
+            echo "$0: Cancelling resize"
+            exit 1
+          else
+            fsck -f "$newdisk" > /dev/null # just let errors show
+            if [ "$?" -ne 0 ]; then
+              echo "$0: Cancelling resize - fsck failed"
+              exit 1
+            fi
+            resize2fs "$newdisk" "$size"G > /dev/null # this is actually gibibytes
+            if [ "$?" -ne 0 ]; then
+              echo "$0: Resize of $newdisk to $sizeG failed"
+              exit 1
+            fi
+            new_size=$(du -b /host/ubuntu/disks/new.disk 2> /dev/null | cut -f 1)
+            new_size=`echo "$new_size / 1000000000" | bc`  #assumes made by this program, otherwise will underreport
+            echo "$0: "$newdisk" resized to "$new_size" GB"
+          fi
         else
-          echo "$0: the requested new disk size: $size GB."
+          exit 1
         fi
-        exit 1
     fi
     
    # Determine free space on /host, also the size of /host partition
