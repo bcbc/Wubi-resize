@@ -291,8 +291,12 @@ sanity_checks ()
             echo "$0: Cancelling resize"
             exit 1
           else
-            fsck -f "$newdisk" > /dev/null # just let errors show
-            if [ "$?" -ne 0 ]; then
+            # Force fsck and correct without prompt 
+            # Ignore exit codes:
+            #    0 - no problem
+            #    1 - errors corrected.
+            fsck -fp "$newdisk" > /dev/null # just let errors show
+            if [ "$?" -gt 1 ]; then
               echo "$0: Cancelling resize - fsck failed"
               exit 1
             fi
@@ -429,7 +433,6 @@ resize ()
   echo "$0: Copying from root (/)"
   rsync "$rsync_opts" --delete --one-file-system --exclude=/boot --exclude=/usr --exclude=/home --exclude=/tmp/* --exclude=/proc/* --exclude=/sys/* / "$target"
   rc="$?"
-  test_YN "just a pause to see what's up"
   if [ "$rc" == 0 ]; then
     echo "$0: Copying from /boot"
     rsync "$rsync_opts" --delete --one-file-system /boot "$target"
@@ -444,9 +447,6 @@ resize ()
     echo "$0: Copying from /home"
     rsync "$rsync_opts" --delete --one-file-system --exclude=/home/*/.cache/gvfs /home "$target"
   fi
-
-  #rsync "$rsync_opts" --delete --one-file-system --exclude '/sys/*' --exclude '/proc/*' --exclude '/host/*' --exclude '/mnt/*' --exclude '/media/*/*' --exclude '/tmp/*' --exclude '/home/*/.gvfs' --exclude '/home/*/.cache/gvfs' --exclude '/var/lib/lightdm/.gvfs' / $target
-
   if [ "$rc" != 0 ]; then
      echo "$0: Copying files failed or was canceled. Return code: "$rc""
      echo "$0: Correct errors and rerun with --resume option"
