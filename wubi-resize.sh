@@ -89,7 +89,7 @@ Increase the wubi virtual disk size
 
 Note: you have to complete the resize by booting into windows and
 renaming the root.disk to OLDroot.disk and new.disk to root.disk
-before rebooting. Only delete the OLDroot.disk once you are sure
+before rebooting. Only delete the old root.disk once you are sure
 the resize worked. 
 
 This script will merge separate virtual disks into a single root.disk
@@ -471,10 +471,9 @@ resize ()
   rmdir $target
 
   echo "$0: Operation completed successfully. Please boot into"
-  echo "$0: host operating system and rename root.disk to OLDroot.disk"
-  echo "$0: and rename new.disk to root.disk."
-  echo "$0: NOTE: Keep the OLDroot.disk until you confirm everything is working!"
-
+  echo "$0: Windows and rename the existing root.disk to"
+  echo "$0: OLDroot.disk and new.disk to root.disk. Keep the"
+  echo "$0: old disk until you confirm everything is working!"
 }
 
 #Main processing
