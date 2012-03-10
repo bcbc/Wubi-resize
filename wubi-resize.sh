@@ -286,7 +286,7 @@ sanity_checks ()
         echo "$0: existing install ("$installsize" GB) plus a freespace buffer"
         if [ "$resume" == "true" ]; then
           size=`echo "$installsize + 1" | bc`
-          test_YN "Resize existing new disk size to: $size GB?"
+          test_YN "Resize existing new disk size to: $size GB? (Y/N)"
           if [ "$?" -eq 1 ]; then # user pressed N
             echo "$0: Cancelling resize"
             exit 1
@@ -344,6 +344,11 @@ sanity_checks ()
       fi
     fi
 
+}
+# warn about return code 24 from rsync but don't quit
+rc_24_warn ()
+{
+    echo "$0: Ignoring return code 24 from rsync copy..."
 }
 
 #resize
@@ -431,21 +436,39 @@ resize ()
      rsync_opts="-a"
   fi
   echo "$0: Copying from root (/)"
+  warn_24_rc=false
   rsync "$rsync_opts" --delete --one-file-system --exclude=/boot --exclude=/usr --exclude=/home --exclude=/tmp/* --exclude=/proc/* --exclude=/sys/* / "$target"
   rc="$?"
+  if [ "$rc" == 24 ]; then
+    warn_24_rc=true
+    rc=0
+  fi
   if [ "$rc" == 0 ]; then
     echo "$0: Copying from /boot"
     rsync "$rsync_opts" --delete --one-file-system /boot "$target"
     rc="$?"
+  fi
+  if [ "$rc" == 24 ]; then
+    warn_24_rc=true
+    rc=0
   fi
   if [ "$rc" == 0 ]; then
     echo "$0: Copying from /usr"
     rsync "$rsync_opts" --delete --one-file-system /usr "$target"
     rc="$?"
   fi
+  if [ "$rc" == 24 ]; then
+    warn_24_rc=true
+    rc=0
+  fi
   if [ "$rc" == 0 ]; then
     echo "$0: Copying from /home"
     rsync "$rsync_opts" --delete --one-file-system --exclude=/home/*/.cache/gvfs /home "$target"
+    rc="$?"
+  fi
+  if [ "$rc" == 24 ]; then
+    warn_24_rc=true
+    rc=0
   fi
   if [ "$rc" != 0 ]; then
      echo "$0: Copying files failed or was canceled. Return code: "$rc""
@@ -458,6 +481,12 @@ resize ()
      echo "$0: Operation aborted"
      exit 1
   fi 
+# Already noted any 24 return code from separate rsync calls. If any other non-zero
+# return code was issued, it will have dropped down to the block above and exited.
+# Otherwise issue warning and continue
+  if [ "$warn_24_rc" == "true" ]; then
+    rc_24_warn
+  fi
 #  echo "$0: `date`"
   echo "$0: Copying files completed"
 
