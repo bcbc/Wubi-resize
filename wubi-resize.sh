@@ -95,6 +95,12 @@ the resize worked.
 This script will merge separate virtual disks into a single root.disk
 (and adjust the /etc/fstab accordingly). 
 Host partitions that are FAT32 are not supported.
+
+If the script exits due to rsync copy failures, for example, a corrupt
+file, it is possible to correct the problem and then resume the script
+without recreating the new virtual disk and recopying everything.
+Rerun the script with the --resume option. In this case the size parameter
+is ignored, but the script will offer to resize the new disk if too small.
 EOF
 }
 
@@ -437,7 +443,7 @@ resize ()
   fi
   echo "$0: Copying from root (/)"
   warn_24_rc=false
-  rsync "$rsync_opts" --delete --one-file-system --exclude=/boot --exclude=/usr --exclude=/home --exclude=/tmp/* --exclude=/proc/* --exclude=/sys/* / "$target"
+  rsync "$rsync_opts" --delete --one-file-system --exclude=/boot --exclude=/usr --exclude=/home --exclude=/tmp/* --exclude=/proc/* --exclude=/sys/* --exclude=/var/lib/lightdm/.gvfs / "$target"
   rc="$?"
   if [ "$rc" == 24 ]; then
     warn_24_rc=true
@@ -463,7 +469,7 @@ resize ()
   fi
   if [ "$rc" == 0 ]; then
     echo "$0: Copying from /home"
-    rsync "$rsync_opts" --delete --one-file-system --exclude=/home/*/.cache/gvfs /home "$target"
+    rsync "$rsync_opts" --delete --one-file-system --exclude=/home/*/.cache/gvfs --exclude=/home/*/.gvfs /home "$target"
     rc="$?"
   fi
   if [ "$rc" == 24 ]; then

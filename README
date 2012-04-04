@@ -17,6 +17,7 @@ Increase the wubi virtual disk size
   --version               print the version information and exit
   -v, --verbose           print verbose output
   --max-override          ignore maximum size constraint of 32GB
+  --resume                resume previous failure due to copy errors
 
 Note: you have to complete the resize by booting into windows and
 renaming the root.disk to OLDroot.disk and new.disk to root.disk
@@ -27,3 +28,8 @@ This script will merge separate virtual disks into a single root.disk
 (and adjust the /etc/fstab accordingly). 
 Host partitions that are FAT32 are not supported.
 
+If the script exits due to rsync copy failures, for example, a corrupt 
+file, it is possible to correct the problem and then resume the script
+without recreating the new virtual disk and recopying everything.
+Rerun the script with the --resume option. In this case the size parameter
+is ignored, but the script will offer to resize the new disk if too small.
