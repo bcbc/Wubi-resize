@@ -53,11 +53,11 @@ maxsize=32 # max size of new virtual disk unless --max-override supplied
 target=/tmp/wubi-resize # mountpoint to be used for new virtual disk
 # flags
 size_entered=false  #did the user enter the new size?
-
+grub_legacy=false   # wubi with grub legacy?
 # work variables
 ddcount=0
 host_mountpoint= 
-GRUB_DEVICE_BOOT=
+root_device=
 loop_file=
 mtpt=
 newdisk=
@@ -183,11 +183,11 @@ sanity_checks ()
         exit 1
     fi
 
-# identify boot device - looking for /dev/loop , and then identify the loop file (root.disk)
-    GRUB_DEVICE_BOOT="`grub-probe --target=device /boot`"
-    case ${GRUB_DEVICE_BOOT} in
+# identify root device - looking for /dev/loop , and then identify the loop file (root.disk)
+    root_device="`grub-probe --target=device / 2> /dev/null`"
+    case ${root_device} in
       /dev/loop/*|/dev/loop[0-9])
-        loop_file=`losetup ${GRUB_DEVICE_BOOT} | sed -e "s/^[^(]*(\([^)]\+\)).*/\1/"`
+        loop_file=`losetup ${root_device} | sed -e "s/^[^(]*(\([^)]\+\)).*/\1/"`
       ;;
     esac
 
@@ -220,6 +220,11 @@ sanity_checks ()
     if [ "$host_mountpoint" != "/host" ]; then
         echo "$0: Unsupported install - not mounted under /host"
         exit 1
+    fi
+
+    # check for grub-legacy (wubi installed on release 9.04 or earlier)
+    if [ $(grub-install.real --version | grep "0.97" | wc -l) -ne 0 ]; then
+        grub_legacy=true
     fi
 
     newdisk=/host/ubuntu/disks/new.disk
@@ -449,7 +454,9 @@ resize ()
     warn_24_rc=true
     rc=0
   fi
-  if [ "$rc" == 0 ]; then
+
+  # copy /boot except for grub-legacy where it's not on the virtual disk
+  if [ "$rc" == 0 ] && [ "$grub_legacy" == "false" ]; then
     echo "$0: Copying from /boot"
     rsync "$rsync_opts" --delete --one-file-system /boot "$target"
     rc="$?"
