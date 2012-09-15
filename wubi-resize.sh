@@ -230,7 +230,7 @@ sanity_checks ()
     newdisk=/host/ubuntu/disks/new.disk
     if [ -f "$newdisk" ]; then
       if [ "$resume" == "true" ]; then
-        new_size=$(du -b /host/ubuntu/disks/new.disk 2> /dev/null | cut -f 1)
+        new_size=$(du -b "$newdisk" 2> /dev/null | cut -f 1)
         new_size=`echo "$new_size / 1000000000" | bc`  #assumes made by this program, otherwise will underreport
         echo "$0: resuming previous attempt - size is "$new_size" GB"
         size=$new_size # edit size check with actual size, not inputted size
@@ -316,7 +316,7 @@ sanity_checks ()
               echo "$0: Resize of $newdisk to $sizeG failed"
               exit 1
             fi
-            new_size=$(du -b /host/ubuntu/disks/new.disk 2> /dev/null | cut -f 1)
+            new_size=$(du -b "$newdisk" 2> /dev/null | cut -f 1)
             new_size=`echo "$new_size / 1000000000" | bc`  #assumes made by this program, otherwise will underreport
             echo "$0: "$newdisk" resized to "$new_size" GB"
           fi
