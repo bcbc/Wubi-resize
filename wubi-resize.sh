@@ -386,57 +386,47 @@ resize ()
 
   # The dd command uses a block size of 1MB (1024KB)
   # Multiply new size by 1000 for the count= parameter
+  # Capture output from stdout and stderr - even successful
+  # execution outputs to stderr
     ddcount=`expr "$size" "*" 1000`
-    if [ "$verbose" != "true" ]; then
-      exec 3>&1 #save stdout to file descriptor 3
-      exec > /dev/null
-    fi
-    dd if=/dev/zero of="$newdisk" bs=1MB count="$ddcount"
+    dd if=/dev/zero of="$newdisk" bs=1MB count="$ddcount" > /tmp/wubi-resize-output 2>&1
     retcode="$?"
-    if [ "$verbose" != "true" ]; then
-      exec 1>&3 3>&- # restore stdout and remove fd3
-    else
-      echo ""
-      echo  "$0: Verbose mode: press Enter to continue"
-      read input
-    fi
     if [ "$retcode" != 0 ]; then
        echo "$0: Creating the new.disk failed or was canceled"
        echo "$0: Operation aborted"
        rm "$newdisk" 
+       echo "$(cat /tmp/wubi-resize-output)"
        exit 1
+    fi
+    if [ "$verbose" == "true" ]; then
+      echo "$(cat /tmp/wubi-resize-output)"
+      echo  "$0: Verbose mode: press Enter to continue"
+      read input
     fi
   fi
    
  # echo "$0: `date`"
   if [ "$resume" == "false" ]; then
     echo "$0: Formatting new virtual disk as ext4."
-    if [ "$verbose" != "true" ]; then
-      exec 3>&1 #save stdout to file descriptor 3
-      exec > /dev/null
-    fi
-    mkfs.ext4 -F "$newdisk"
+    mkfs.ext4 -F "$newdisk" > /tmp/wubi-resize-output 2>&1
     retcode="$?"
-    if [ "$verbose" != "true" ]; then
-      exec 1>&3 3>&- # restore stdout and remove fd3
-    else
-      echo ""
-      echo  "$0: Verbose mode: press Enter to continue"
-      read input
-    fi
     if [ "$retcode" != 0 ]; then
        echo "$0: Formatting the new.disk failed or was canceled"
        echo "$0: Operation aborted"
        rm "$newdisk" > /dev/null 2>&1
+       echo "$(cat /tmp/wubi-resize-output)"
        exit 1
+    fi
+    if [ "$verbose" == "true" ]; then
+      echo "$(cat /tmp/wubi-resize-output)"
+      echo  "$0: Verbose mode: press Enter to continue"
+      read input
     fi
   fi
 
 # copy files
   mkdir -p $target
   umount $target > /dev/null 2>&1
-#  mount -o loop,sync "$newdisk" $target (sync takes much longer and only really helps in case of hard shutdown in which case
-# this wouldn't work anyway.)
   mount -o loop "$newdisk" $target
 #  echo "$0: `date`"
   echo "$0: Copying files - this will take some time." 
@@ -507,10 +497,11 @@ resize ()
   sed -i 's:/.*home[\.]disk .*::' $target/etc/fstab
   sed -i 's:/.*usr[\.]disk .*::' $target/etc/fstab
 # force ureadahead to refresh
-  rm $target/var/lib/ureadahead/pack
+  rm $target/var/lib/ureadahead/pack > /dev/null 2>&1
   umount $target
   sleep 3
   rmdir $target
+  rm /tmp/wubi-resize-output > /dev/null 2>&1
 
   echo "$0: Operation completed successfully. Please boot into"
   echo "$0: Windows and rename the existing root.disk to"
