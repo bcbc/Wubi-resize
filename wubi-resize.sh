@@ -48,7 +48,7 @@ size=            # size of new virtual disk
 resume=false     # resume failed copy or synch backup
 
 # literals
-version=1.5b
+version=1.6
 maxsize=32 # max size of new virtual disk unless --max-override supplied
 target=/tmp/wubi-resize # mountpoint to be used for new virtual disk
 # flags
@@ -395,11 +395,12 @@ resize ()
        echo "$0: Creating the new.disk failed or was canceled"
        echo "$0: Operation aborted"
        rm "$newdisk" 
-       echo "$(cat /tmp/wubi-resize-output)"
+       echo "Error is: $(cat /tmp/wubi-resize-output)"
        exit 1
     fi
     if [ "$verbose" == "true" ]; then
       echo "$(cat /tmp/wubi-resize-output)"
+      echo ""
       echo  "$0: Verbose mode: press Enter to continue"
       read input
     fi
@@ -414,11 +415,12 @@ resize ()
        echo "$0: Formatting the new.disk failed or was canceled"
        echo "$0: Operation aborted"
        rm "$newdisk" > /dev/null 2>&1
-       echo "$(cat /tmp/wubi-resize-output)"
+       echo "Error is: $(cat /tmp/wubi-resize-output)"
        exit 1
     fi
     if [ "$verbose" == "true" ]; then
       echo "$(cat /tmp/wubi-resize-output)"
+      echo ""
       echo  "$0: Verbose mode: press Enter to continue"
       read input
     fi
