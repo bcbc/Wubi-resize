@@ -232,7 +232,7 @@ sanity_checks ()
       if [ "$resume" == "true" ]; then
         new_size=$(du -b "$newdisk" 2> /dev/null | cut -f 1)
         new_size=`echo "$new_size / 1000000000" | bc`  #assumes made by this program, otherwise will underreport
-        echo "$0: resuming previous attempt - size is "$new_size" GB"
+        echo "$0: Resuming previous attempt - size is "$new_size" GB"
         size=$new_size # edit size check with actual size, not inputted size
       else
         echo "$0: $newdisk already exists. Either remove"
@@ -480,7 +480,7 @@ resize ()
      echo "$0: Correct errors and rerun with --resume option"
      echo "$0: Please wait - cleaning up..."
      umount $target > /dev/null 2>&1 
-     sleep 3
+     sleep 5
      rmdir $target
      #rm "$newdisk" > /dev/null 2>&1  don't delete anymore
      echo "$0: Operation aborted"
@@ -513,6 +513,7 @@ resize ()
 
 #Main processing
 #echo "$0: `date`"
+echo "$0: Version $version"
 sanity_checks
 resize
 #echo "$0: `date`"
