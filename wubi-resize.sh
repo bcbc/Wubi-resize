@@ -513,7 +513,6 @@ resize ()
 
 #Main processing
 #echo "$0: `date`"
-echo "$0: Version $version"
 sanity_checks
 resize
 #echo "$0: `date`"
