@@ -48,7 +48,7 @@ size=            # size of new virtual disk
 resume=false     # resume failed copy or synch backup
 
 # literals
-version=1.6
+version=1.7
 maxsize=32 # max size of new virtual disk unless --max-override supplied
 target=/tmp/wubi-resize # mountpoint to be used for new virtual disk
 # flags
@@ -434,9 +434,9 @@ resize ()
   echo "$0: Copying files - this will take some time." 
   echo "$0: Please be patient..."  
   if [ "$verbose" = "true" ]; then
-     rsync_opts="-av"
+     rsync_opts="-aAXv"
   else
-     rsync_opts="-a"
+     rsync_opts="-aAX"
   fi
   echo "$0: Copying from root (/)"
   warn_24_rc=false
