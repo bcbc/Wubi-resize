@@ -48,7 +48,7 @@ size=            # size of new virtual disk
 resume=false     # resume failed copy or synch backup
 
 # literals
-version=1.7
+version=1.8
 maxsize=32 # max size of new virtual disk unless --max-override supplied
 target=/tmp/wubi-resize # mountpoint to be used for new virtual disk
 # flags
@@ -71,6 +71,7 @@ buffer=
 input=
 retcode=
 rsync_opts=
+new_disk_path=/host/ubuntu/disks
 
 usage () 
 {
@@ -86,6 +87,7 @@ Increase the wubi virtual disk size
   -v, --verbose           print verbose output
   --max-override          ignore maximum size constraint of 32GB
   --resume                resume previous failure due to copy errors
+  --new-disk-path=        override where the new disk is created
 
 Note: you have to complete the resize by booting into windows and
 renaming the root.disk to OLDroot.disk and new.disk to root.disk
@@ -122,6 +124,14 @@ for option in "$@"; do
     ;;
     --resume)
     resume=true
+    ;;
+    --new-disk-path=*)
+    new_disk_path=`echo "$option" | sed 's/--new-disk-path=//'`
+    new_disk_path="${new_disk_path%/}"
+    if [ ! -d "$new_disk_path" ]; then
+        echo "$0: The path for new.disk ("$new_disk_path") is invalid"
+      exit 1
+    fi
     ;;
 #undocumented debug option
     -d | --debug)
@@ -227,7 +237,7 @@ sanity_checks ()
         grub_legacy=true
     fi
 
-    newdisk=/host/ubuntu/disks/new.disk
+    newdisk="$new_disk_path"/new.disk
     if [ -f "$newdisk" ]; then
       if [ "$resume" == "true" ]; then
         new_size=$(du -b "$newdisk" 2> /dev/null | cut -f 1)
@@ -242,13 +252,6 @@ sanity_checks ()
     elif [ "$resume" == "true" ]; then
         echo "$0: --resume option invalid and will be ignored"
         resume=false
-    fi
-    # check host partition is not FAT32 - this is limited to 4GB file sizes
-    hostdev=$(mount | grep /host | tail -n 1 | awk '{print $1}')
-    hosttype=`blkid -o value -s TYPE "$hostdev"`
-    if [ "$hosttype" = "fat32" ]  || [ "$hosttype" = "FAT32" ]; then
-        echo "$0: Host partition is type FAT32 - this is not supported"
-        exit 1
     fi
 
     if [ "$resume" == "false" ]; then
@@ -324,12 +327,50 @@ sanity_checks ()
           exit 1
         fi
     fi
-    
-   # Determine free space on /host, also the size of /host partition
-   # There must be enough space to create the new virtual disk as 
-   # well as leave sufficient buffer (set at 5% of total disk size).
+
+    # Determine the host partition of the new disk file and check it
+    host_mountpoint=
+    if [ "$new_disk_path" != "/host/ubuntu/disks" ]; then
+      # start looking at the new_disk_path to see if it's a mountpoint
+      mtpt="${new_disk_path}"
+      while [ -n "$mtpt" ]; do
+        while read DEV MTPT FSTYPE OPTS REST; do
+          if [ "$MTPT" = "$mtpt" ]; then
+            host_mountpoint=$MTPT
+            break
+          fi
+        done < /proc/mounts
+        # Strip off last part of path i.e. /xxx/yyy/zzz --> /xxx/yyy
+        mtpt="${mtpt%/*}"
+        # Keep going until host_mountpoint is set (non-empty string)
+        [ -z "$host_mountpoint" ] || break
+      done
+    else # Default scenario
+        host_mountpoint=/host
+    fi
+
+    # If the --new-disk-path= option specifies a directory within
+    # the root.disk, $host_mountpoint will be an empty string
+    if [ -z "$host_mountpoint" ]; then
+        echo "$0: Cannot create new.disk inside the current root.disk"
+        exit 1
+    fi
+
+    # check host partition is not FAT32 - this is limited to 4GB file sizes
+    # TODO this check isn't enough anymore now that the new.disk
+    # can be created on partitions other than /host
+    hostdev=$(mount | grep "$host_mountpoint" | tail -n 1 | awk '{print $1}')
+    hosttype=`blkid -o value -s TYPE "$hostdev"`
+    if [ "$hosttype" = "fat32" ]  || [ "$hosttype" = "FAT32" ]; then
+        echo "$0: Host partition is type FAT32 - this is not supported"
+        exit 1
+    fi
+
+    # Determine free space on the host, also the size of the host partition
+    # There must be enough space to create the new virtual disk as
+    # well as leave sufficient buffer (set at 5% of total disk size).
     if [ "$resume" == "false" ]; then
-      free_space=$(df /host|tail -n 1|awk '{print $4}')
+      free_space=$(df "$host_mountpoint" | tail -n 1 | awk '{print $4}')
       if [ $? != 0 ]; then
           echo "$0: unexpected failure calculating available size"
           exit 1
@@ -338,7 +379,7 @@ sanity_checks ()
       free_space=`echo "$free_space / 1024000" | bc`
 
       # total size of partition
-      total_size=$(df /host|tail -n 1|awk '{print $2}')
+      total_size=$(df "$host_mountpoint"|tail -n 1|awk '{print $2}')
       if [ $? != 0 ]; then
           echo "$0: unexpected failure calculating available size"
           exit 1
@@ -509,6 +550,12 @@ resize ()
   echo "$0: Windows and rename the existing root.disk to"
   echo "$0: OLDroot.disk and new.disk to root.disk. Keep the"
   echo "$0: old disk until you confirm everything is working!"
+
+  # Add instruction when the --new-disk-path option is used
+  if [ "$new_disk_path" != "/host/ubuntu/disks" ]; then
+    echo "$0: The new disk has to be in the \\ubuntu\\disks\\ directory"
+    echo "$0: on your Windows host partition before you can use it."
+  fi
 }
 
 #Main processing
