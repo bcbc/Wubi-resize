@@ -18,12 +18,12 @@ Usage
        
 ####Increase the wubi virtual disk size####
 
-|Options|Utility|
-|`-h, --help`       |print this message and exit|
-|--version          |print the version information and exit|
-|-v, --verbose      |print verbose output|
-|--max-override     |ignore maximum size constraint of 32GB|
-|--resume           |resume previous failure due to copy errors|
+       |Options|Utility|
+       |`-h, --help`       |print this message and exit|
+       |--version          |print the version information and exit|
+       |-v, --verbose      |print verbose output|
+       |--max-override     |ignore maximum size constraint of 32GB|
+       |--resume           |resume previous failure due to copy errors|
 
 <strong>Note:</strong> you have to complete the resize by booting into windows and
 renaming the root.disk to OLDroot.disk and new.disk to root.disk
